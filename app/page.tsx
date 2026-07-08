@@ -158,6 +158,7 @@ export default function SearchPage() {
   const [searched, setSearched] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>("price");
   const [inStockOnly, setInStockOnly] = useState(false);
+  const [dataSource, setDataSource] = useState<"nexar" | "mock" | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const doSearch = useCallback(async (q: string) => {
@@ -171,6 +172,7 @@ export default function SearchPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Search failed");
       setParts(data.parts ?? []);
+      setDataSource(data.source ?? null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
       setParts([]);
@@ -219,7 +221,19 @@ export default function SearchPage() {
             <span className="text-zinc-300">|</span>
             <span className="text-sm text-zinc-500">Parts Search</span>
           </div>
+          <div className="flex items-center gap-2">
+          {dataSource === "mock" && (
+            <span className="text-xs bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full">
+              Demo data — activate Nexar plan for live results
+            </span>
+          )}
+          {dataSource === "nexar" && (
+            <span className="text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full">
+              Live
+            </span>
+          )}
           <span className="text-xs text-zinc-400">Powered by Nexar / Octopart</span>
+        </div>
         </div>
       </header>
 

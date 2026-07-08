@@ -46,7 +46,7 @@ const SEARCH_QUERY = `
             documents { url name }
           }
           sellers {
-            company { name homepage }
+            company { name homepageUrl }
             offers {
               sku
               inventoryLevel
@@ -66,7 +66,7 @@ const SEARCH_QUERY = `
 `;
 
 interface NexarSeller {
-  company: { name: string; homepage: string | null };
+  company: { name: string; homepageUrl: string | null };
   offers: Array<{
     sku: string;
     inventoryLevel: number;
@@ -85,17 +85,14 @@ interface NexarPart {
   sellers: NexarSeller[];
 }
 
-function buildDistributorUrl(companyName: string, homepage: string | null, sku: string): string | null {
-  if (homepage) {
-    const knownUrls: Record<string, string> = {
-      "DigiKey": `https://www.digikey.com/en/products/detail/-/-/${sku}`,
-      "Mouser": `https://www.mouser.com/ProductDetail/${sku}`,
-      "Arrow": `https://www.arrow.com/en/products/${sku}`,
-      "Avnet": `https://www.avnet.com/shop/us/search-filter?q=${encodeURIComponent(sku)}`,
-    };
-    return knownUrls[companyName] ?? homepage;
-  }
-  return null;
+function buildDistributorUrl(companyName: string, homepageUrl: string | null, sku: string): string | null {
+  const knownUrls: Record<string, string> = {
+    "DigiKey": `https://www.digikey.com/en/products/detail/-/-/${sku}`,
+    "Mouser": `https://www.mouser.com/ProductDetail/${sku}`,
+    "Arrow": `https://www.arrow.com/en/products/${sku}`,
+    "Avnet": `https://www.avnet.com/shop/us/search-filter?q=${encodeURIComponent(sku)}`,
+  };
+  return knownUrls[companyName] ?? homepageUrl ?? null;
 }
 
 export async function searchNexar(query: string, limit = 20): Promise<Part[]> {
@@ -115,6 +112,12 @@ export async function searchNexar(query: string, limit = 20): Promise<Part[]> {
   }
 
   const json = await res.json();
+
+  if (json.errors?.length) {
+    const msg: string = json.errors[0].message ?? "Unknown Nexar error";
+    throw new Error(msg);
+  }
+
   const results: NexarPart[] = json.data?.supSearchMpn?.results?.map(
     (r: { part: NexarPart }) => r.part
   ) ?? [];
@@ -140,7 +143,7 @@ export async function searchNexar(query: string, limit = 20): Promise<Part[]> {
           description: nexarPart.shortDescription ?? "",
           distributor: seller.company.name,
           distributorSku: offer.sku,
-          distributorUrl: buildDistributorUrl(seller.company.name, seller.company.homepage, offer.sku),
+          distributorUrl: buildDistributorUrl(seller.company.name, seller.company.homepageUrl, offer.sku),
           unitPrice: lowestPrice.price,
           currency: lowestPrice.currency,
           priceBreaks: sortedPrices.map((p) => ({
