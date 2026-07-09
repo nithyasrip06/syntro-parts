@@ -158,7 +158,7 @@ export default function SearchPage() {
   const [searched, setSearched] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>("price");
   const [inStockOnly, setInStockOnly] = useState(false);
-  const [dataSource, setDataSource] = useState<"nexar" | "mock" | null>(null);
+  const [dataSource, setDataSource] = useState<"nexar" | "mock" | "cache" | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const doSearch = useCallback(async (q: string) => {
@@ -230,6 +230,11 @@ export default function SearchPage() {
           {dataSource === "nexar" && (
             <span className="text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full">
               Live
+            </span>
+          )}
+          {dataSource === "cache" && (
+            <span className="text-xs bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-full">
+              Cached
             </span>
           )}
           <span className="text-xs text-zinc-400">Powered by Nexar / Octopart</span>
