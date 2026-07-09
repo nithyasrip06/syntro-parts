@@ -1,74 +1,52 @@
 import type { AlibabaSupplier } from "@/types/part";
 
-// Actor: bebity/alibaba-product-scraper (apify.com/store)
-// Swap actorId here if you find a better maintained alternative
-const ACTOR_ID = "bebity~alibaba-product-scraper";
+// Actor: devcake/alibaba-products-scraper (apify.com/store)
+// Input:  { queries: string[], maxItems: number }
+// Output fields confirmed from live API response
+const ACTOR_ID = "devcake~alibaba-products-scraper";
 const APIFY_BASE = "https://api.apify.com/v2";
 
 interface ApifyRawItem {
-  companyName?: string;
-  title?: string;
-  productName?: string;
-  price?: string;
-  priceRange?: string;
-  minPrice?: number;
-  maxPrice?: number;
-  minOrder?: number | string;
-  moq?: number | string;
-  url?: string;
-  productUrl?: string;
-  imageUrl?: string;
-  image?: string;
-  rating?: number;
-  supplierRating?: number;
-  leadTime?: string;
+  company_name?: string;
+  name?: string;
+  price_min?: number;
+  price_max?: number;
+  currency?: string;
+  moq?: number;
+  product_url?: string;
+  main_image?: string;
+  supplier_service_score?: number;
+  review_score?: number;
+  delivery_estimate?: string;
+  dispatch_time?: string;
 }
 
-function parsePriceRange(raw: ApifyRawItem): { min: number; max: number; currency: string } {
-  // Try structured fields first
-  if (raw.minPrice && raw.maxPrice) {
-    return { min: raw.minPrice, max: raw.maxPrice, currency: "USD" };
-  }
-  // Parse string like "$0.05 - $0.12" or "¥0.30-¥0.80"
-  const str = raw.price ?? raw.priceRange ?? "";
-  const nums = str.match(/[\d.]+/g)?.map(Number).filter((n) => n > 0) ?? [];
-  if (nums.length >= 2) return { min: nums[0], max: nums[1], currency: "USD" };
-  if (nums.length === 1) return { min: nums[0], max: nums[0], currency: "USD" };
-  return { min: 0, max: 0, currency: "USD" };
-}
-
-function parseLeadTime(raw: ApifyRawItem): { min: number; max: number } {
-  const str = raw.leadTime ?? "";
+function parseLeadDays(raw: ApifyRawItem): { min: number; max: number } {
+  const str = raw.delivery_estimate ?? raw.dispatch_time ?? "";
   const nums = str.match(/\d+/g)?.map(Number) ?? [];
   if (nums.length >= 2) return { min: nums[0], max: nums[1] };
   if (nums.length === 1) return { min: nums[0], max: nums[0] };
-  return { min: 15, max: 45 }; // Alibaba default estimate
-}
-
-function normalizeMoq(raw: ApifyRawItem): number {
-  const val = raw.minOrder ?? raw.moq ?? 1;
-  return typeof val === "string" ? parseInt(val.replace(/\D/g, "")) || 1 : val;
+  return { min: 15, max: 45 };
 }
 
 export function normalizeApifyItems(items: ApifyRawItem[]): AlibabaSupplier[] {
   return items
-    .filter((item) => item.companyName || item.title || item.productName)
+    .filter((item) => item.company_name && item.name)
     .slice(0, 5)
     .map((item) => {
-      const price = parsePriceRange(item);
-      const lead = parseLeadTime(item);
+      const lead = parseLeadDays(item);
       return {
-        supplierName: item.companyName ?? "Unknown Supplier",
-        productTitle: item.title ?? item.productName ?? "Product",
-        priceMin: price.min,
-        priceMax: price.max,
-        currency: price.currency,
-        moq: normalizeMoq(item),
+        supplierName: item.company_name!,
+        productTitle: item.name!,
+        priceMin: item.price_min ?? 0,
+        priceMax: item.price_max ?? item.price_min ?? 0,
+        currency: item.currency ?? "USD",
+        moq: item.moq ?? 1,
         leadTimeMin: lead.min,
         leadTimeMax: lead.max,
-        supplierRating: item.rating ?? item.supplierRating ?? null,
-        productUrl: item.url ?? item.productUrl ?? "https://www.alibaba.com",
-        imageUrl: item.imageUrl ?? item.image ?? null,
+        supplierRating: item.supplier_service_score ?? item.review_score ?? null,
+        productUrl: item.product_url ?? "https://www.alibaba.com",
+        imageUrl: item.main_image ?? null,
       };
     });
 }
@@ -82,13 +60,7 @@ export async function searchAlibaba(query: string): Promise<AlibabaSupplier[]> {
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      searchQuery: query,
-      maxItems: 5,
-      // some actors use these field names instead:
-      keyword: query,
-      maxProducts: 5,
-    }),
+    body: JSON.stringify({ queries: [query], maxItems: 5 }),
     signal: AbortSignal.timeout(65_000),
   });
 
