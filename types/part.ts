@@ -4,6 +4,20 @@ export interface PriceBreak {
   currency: string;
 }
 
+export interface AlibabaSupplier {
+  supplierName: string;
+  productTitle: string;
+  priceMin: number;
+  priceMax: number;
+  currency: string;
+  moq: number;
+  leadTimeMin: number;
+  leadTimeMax: number;
+  supplierRating: number | null;
+  productUrl: string;
+  imageUrl: string | null;
+}
+
 export interface Part {
   mpn: string;
   manufacturer: string;

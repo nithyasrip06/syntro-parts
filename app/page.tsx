@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef } from "react";
-import type { Part } from "@/types/part";
+import type { Part, AlibabaSupplier } from "@/types/part";
 
 type SortKey = "price" | "stock" | "leadTime";
 
@@ -159,6 +159,8 @@ export default function SearchPage() {
   const [sortKey, setSortKey] = useState<SortKey>("price");
   const [inStockOnly, setInStockOnly] = useState(false);
   const [dataSource, setDataSource] = useState<"nexar" | "mock" | "cache" | null>(null);
+  const [suppliers, setSuppliers] = useState<AlibabaSupplier[]>([]);
+  const [alibabaSource, setAlibabaSource] = useState<"apify" | "mock" | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const doSearch = useCallback(async (q: string) => {
@@ -168,11 +170,23 @@ export default function SearchPage() {
     setSearched(true);
 
     try {
-      const res = await fetch(`/api/search?q=${encodeURIComponent(q.trim())}`);
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Search failed");
-      setParts(data.parts ?? []);
-      setDataSource(data.source ?? null);
+      const [partsRes, alibabaRes] = await Promise.allSettled([
+        fetch(`/api/search?q=${encodeURIComponent(q.trim())}`),
+        fetch(`/api/alibaba?q=${encodeURIComponent(q.trim())}`),
+      ]);
+
+      if (partsRes.status === "fulfilled") {
+        const data = await partsRes.value.json();
+        if (!partsRes.value.ok) throw new Error(data.error ?? "Search failed");
+        setParts(data.parts ?? []);
+        setDataSource(data.source ?? null);
+      }
+
+      if (alibabaRes.status === "fulfilled") {
+        const data = await alibabaRes.value.json();
+        setSuppliers(data.suppliers ?? []);
+        setAlibabaSource(data.source ?? null);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
       setParts([]);
@@ -395,6 +409,79 @@ export default function SearchPage() {
         {!searched && (
           <div className="text-center py-16 text-zinc-400 text-sm">
             Search for a part number or keyword to see real-time pricing from 40+ distributors.
+          </div>
+        )}
+
+        {/* Alibaba Supplier Quotes */}
+        {!loading && searched && suppliers.length > 0 && (
+          <div className="mt-8">
+            <div className="flex items-center gap-3 mb-3">
+              <h2 className="text-sm font-semibold text-zinc-700">Supplier Quotes</h2>
+              <span className="inline-flex items-center gap-1 text-xs bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full">
+                ⚡ Indicative pricing — contact supplier to confirm
+              </span>
+              {alibabaSource === "mock" && (
+                <span className="text-xs text-zinc-400">Demo data</span>
+              )}
+            </div>
+            <div className="border border-amber-200 rounded-xl overflow-hidden">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="border-b border-amber-200 bg-amber-50">
+                    <th className="py-3 px-4 text-xs font-semibold text-amber-800 uppercase tracking-wide">Supplier</th>
+                    <th className="py-3 px-4 text-xs font-semibold text-amber-800 uppercase tracking-wide">Product</th>
+                    <th className="py-3 px-4 text-xs font-semibold text-amber-800 uppercase tracking-wide">Price range</th>
+                    <th className="py-3 px-4 text-xs font-semibold text-amber-800 uppercase tracking-wide">MOQ</th>
+                    <th className="py-3 px-4 text-xs font-semibold text-amber-800 uppercase tracking-wide">Est. lead time</th>
+                    <th className="py-3 px-4 text-xs font-semibold text-amber-800 uppercase tracking-wide">Rating</th>
+                    <th className="py-3 px-4" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {suppliers.map((s, i) => (
+                    <tr key={i} className="border-b border-amber-100 last:border-0 hover:bg-amber-50/50 transition-colors">
+                      <td className="py-3 px-4">
+                        <span className="text-sm font-medium text-zinc-800">{s.supplierName}</span>
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className="text-sm text-zinc-600 max-w-xs block truncate">{s.productTitle}</span>
+                      </td>
+                      <td className="py-3 px-4 text-sm font-medium text-zinc-900">
+                        {s.priceMin === s.priceMax
+                          ? `$${s.priceMin.toFixed(3)}`
+                          : `$${s.priceMin.toFixed(3)}–$${s.priceMax.toFixed(3)}`}
+                        <span className="text-xs text-zinc-400 font-normal">/ea</span>
+                      </td>
+                      <td className="py-3 px-4 text-sm text-zinc-700">
+                        {s.moq.toLocaleString()} units
+                      </td>
+                      <td className="py-3 px-4 text-sm text-zinc-700">
+                        {s.leadTimeMin === s.leadTimeMax
+                          ? `${s.leadTimeMin} days`
+                          : `${s.leadTimeMin}–${s.leadTimeMax} days`}
+                      </td>
+                      <td className="py-3 px-4 text-sm text-zinc-700">
+                        {s.supplierRating ? `${s.supplierRating}★` : "—"}
+                      </td>
+                      <td className="py-3 px-4">
+                        <a
+                          href={s.productUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm font-medium text-amber-700 hover:text-amber-800 transition-colors whitespace-nowrap"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          Send RFQ →
+                        </a>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="text-xs text-zinc-400 mt-2">
+              Prices are estimates based on Alibaba listings. Actual pricing depends on quantity, material, and supplier negotiation.
+            </p>
           </div>
         )}
       </main>

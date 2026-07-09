@@ -1,4 +1,4 @@
-import type { Part } from "@/types/part";
+import type { Part, AlibabaSupplier } from "@/types/part";
 
 const MOCK_DB: Record<string, Part[]> = {
   default: [
@@ -194,6 +194,130 @@ const MOCK_DB: Record<string, Part[]> = {
     },
   ],
 };
+
+const ALIBABA_MOCK: Record<string, AlibabaSupplier[]> = {
+  screw: [
+    {
+      supplierName: "Shenzhen FastFix Hardware Co., Ltd.",
+      productTitle: "M3 Stainless Steel Socket Head Cap Screws DIN912",
+      priceMin: 0.008,
+      priceMax: 0.025,
+      currency: "USD",
+      moq: 1000,
+      leadTimeMin: 15,
+      leadTimeMax: 30,
+      supplierRating: 4.8,
+      productUrl: "https://www.alibaba.com",
+      imageUrl: null,
+    },
+    {
+      supplierName: "Dongguan Precision Bolt Factory",
+      productTitle: "M3x8 Phillips Pan Head Machine Screws 304 Stainless",
+      priceMin: 0.005,
+      priceMax: 0.018,
+      currency: "USD",
+      moq: 2000,
+      leadTimeMin: 20,
+      leadTimeMax: 35,
+      supplierRating: 4.6,
+      productUrl: "https://www.alibaba.com",
+      imageUrl: null,
+    },
+    {
+      supplierName: "Ningbo Yinzhou Fastener Manufacturer",
+      productTitle: "Custom M3 Hex Bolts Screws Nuts Set Carbon Steel Zinc",
+      priceMin: 0.004,
+      priceMax: 0.012,
+      currency: "USD",
+      moq: 5000,
+      leadTimeMin: 25,
+      leadTimeMax: 45,
+      supplierRating: 4.5,
+      productUrl: "https://www.alibaba.com",
+      imageUrl: null,
+    },
+  ],
+  default: [
+    {
+      supplierName: "Shenzhen IC Components Co., Ltd.",
+      productTitle: "LM358 Dual Op-Amp IC Original New Stock SOIC-8",
+      priceMin: 0.04,
+      priceMax: 0.09,
+      currency: "USD",
+      moq: 500,
+      leadTimeMin: 10,
+      leadTimeMax: 20,
+      supplierRating: 4.7,
+      productUrl: "https://www.alibaba.com",
+      imageUrl: null,
+    },
+    {
+      supplierName: "Guangzhou Electronic Parts Trading",
+      productTitle: "LM358DR SOP8 Operational Amplifier Chip",
+      priceMin: 0.035,
+      priceMax: 0.08,
+      currency: "USD",
+      moq: 1000,
+      leadTimeMin: 15,
+      leadTimeMax: 25,
+      supplierRating: 4.5,
+      productUrl: "https://www.alibaba.com",
+      imageUrl: null,
+    },
+    {
+      supplierName: "Shenzhen Kingstronics Electronic",
+      productTitle: "LM358 Op-Amp IC Chip Low Power Dual Operational Amplifiers",
+      priceMin: 0.03,
+      priceMax: 0.07,
+      currency: "USD",
+      moq: 2000,
+      leadTimeMin: 20,
+      leadTimeMax: 30,
+      supplierRating: 4.4,
+      productUrl: "https://www.alibaba.com",
+      imageUrl: null,
+    },
+  ],
+  resistor: [
+    {
+      supplierName: "Guangdong Yageo Passives Distributor",
+      productTitle: "0402 10K Ohm 1% SMD Resistor RC0402FR-0710KL Reel 10000pcs",
+      priceMin: 0.001,
+      priceMax: 0.003,
+      currency: "USD",
+      moq: 10000,
+      leadTimeMin: 10,
+      leadTimeMax: 20,
+      supplierRating: 4.9,
+      productUrl: "https://www.alibaba.com",
+      imageUrl: null,
+    },
+    {
+      supplierName: "Shenzhen Walsin Technology Dealer",
+      productTitle: "10K Resistor 0402 SMD 1/16W 1% Tolerance Chip Resistor",
+      priceMin: 0.0008,
+      priceMax: 0.0025,
+      currency: "USD",
+      moq: 20000,
+      leadTimeMin: 15,
+      leadTimeMax: 25,
+      supplierRating: 4.7,
+      productUrl: "https://www.alibaba.com",
+      imageUrl: null,
+    },
+  ],
+};
+
+export function getMockAlibabaResults(query: string): AlibabaSupplier[] {
+  const q = query.toLowerCase();
+  if (q.includes("screw") || /\bm[2-6]\b/.test(q) || q.includes("fastener")) {
+    return ALIBABA_MOCK.screw;
+  }
+  if (q.includes("resistor") || q.includes("10k") || q.includes("ohm")) {
+    return ALIBABA_MOCK.resistor;
+  }
+  return ALIBABA_MOCK.default;
+}
 
 export function getMockResults(query: string): Part[] {
   const q = query.toLowerCase();
