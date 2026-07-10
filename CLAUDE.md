@@ -54,7 +54,7 @@ SUPABASE_SERVICE_ROLE_KEY
 
 ## Design
 
-Match the Syntro brand (usesyntro.com): light mode, white/off-white background, blue/teal accents (`blue-600`), Inter-style sans-serif, `rounded-lg` buttons, `shadow-sm` cards, generous whitespace. No dark mode, no glassmorphism.
+Match the Syntro brand (usesyntro.com): light mode, white background, **primary actions = `bg-slate-900` (dark navy) with white text**, teal/cyan accent (`cyan-600`) for links and secondary highlights, `zinc-900` body text, `zinc-200` borders, Inter-style sans-serif, `rounded-lg` buttons, generous whitespace. No dark mode, no glassmorphism, no `blue-600` primary buttons.
 
 ## Path alias
 

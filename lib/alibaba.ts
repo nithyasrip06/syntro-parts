@@ -32,7 +32,8 @@ function parseLeadDays(raw: ApifyRawItem): { min: number; max: number } {
 export function normalizeApifyItems(items: ApifyRawItem[]): AlibabaSupplier[] {
   return items
     .filter((item) => item.company_name && item.name)
-    .slice(0, 5)
+    .sort((a, b) => (b.supplier_service_score ?? 0) - (a.supplier_service_score ?? 0))
+    .slice(0, 3)
     .map((item) => {
       const lead = parseLeadDays(item);
       return {

@@ -5,162 +5,277 @@ import type { Part, AlibabaSupplier } from "@/types/part";
 
 type SortKey = "price" | "stock" | "leadTime";
 
-function formatPrice(price: number | null, currency: string): string {
+function formatPrice(price: number | null, currency = "USD"): string {
   if (price === null) return "—";
+  const digits = price < 0.01 ? 4 : price < 1 ? 3 : 2;
   return new Intl.NumberFormat("en-US", {
     style: "currency",
-    currency: currency || "USD",
-    minimumFractionDigits: 2,
+    currency,
+    minimumFractionDigits: digits,
     maximumFractionDigits: 4,
   }).format(price);
 }
 
-function LeadTimeBadge({ days }: { days: number | null }) {
-  if (days === null)
-    return <span className="text-zinc-400 text-sm">—</span>;
-  if (days <= 2)
-    return (
-      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
-        {days === 0 ? "In stock" : `${days}d`}
-      </span>
-    );
-  if (days <= 14)
-    return (
-      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
-        {days}d
-      </span>
-    );
-  return (
-    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-zinc-100 text-zinc-600 border border-zinc-200">
-      {days}d
-    </span>
-  );
+function LeadText({ days }: { days: number | null }) {
+  if (days === null) return <span>—</span>;
+  if (days === 0) return <span>Ships today</span>;
+  return <span>{days}d lead time</span>;
 }
 
-function StockDisplay({ qty }: { qty: number }) {
-  if (qty === 0)
-    return <span className="text-red-500 text-sm font-medium">Out of stock</span>;
-  if (qty >= 1000)
-    return <span className="text-zinc-700 text-sm">{(qty / 1000).toFixed(1)}k</span>;
-  return <span className="text-zinc-700 text-sm">{qty.toLocaleString()}</span>;
-}
+// ── Accordion row — distributor part ─────────────────────────────────────────
 
 function PartRow({ part }: { part: Part }) {
-  const [expanded, setExpanded] = useState(false);
+  const [open, setOpen] = useState(false);
 
   return (
-    <>
-      <tr
-        className="border-b border-zinc-100 hover:bg-zinc-50 cursor-pointer transition-colors"
-        onClick={() => setExpanded((v) => !v)}
+    <div
+      className={`border-t border-slate-100 transition-all duration-200 ${
+        open
+          ? "border-l-[3px] border-l-indigo-600 bg-white"
+          : "border-l-[3px] border-l-transparent hover:bg-slate-50/50 cursor-pointer"
+      }`}
+      onClick={() => !open && setOpen(true)}
+    >
+      {/* Row header */}
+      <div
+        className="flex items-start justify-between gap-10 px-8 py-5 cursor-pointer"
+        onClick={() => setOpen((v) => !v)}
       >
-        <td className="py-3.5 px-4">
-          <div className="font-mono text-sm font-medium text-zinc-900">{part.mpn}</div>
-          <div className="text-xs text-zinc-500 mt-0.5 max-w-xs truncate">{part.description}</div>
-        </td>
-        <td className="py-3.5 px-4 text-sm text-zinc-700">{part.manufacturer}</td>
-        <td className="py-3.5 px-4">
-          <span className="inline-flex items-center gap-1 text-sm text-zinc-700">
-            {part.distributor}
-          </span>
-        </td>
-        <td className="py-3.5 px-4 text-sm font-medium text-zinc-900">
-          {formatPrice(part.unitPrice, part.currency)}
-          {part.unitPrice !== null && (
-            <span className="text-xs text-zinc-400 font-normal">/ea</span>
-          )}
-        </td>
-        <td className="py-3.5 px-4">
-          <StockDisplay qty={part.stockQty} />
-        </td>
-        <td className="py-3.5 px-4">
-          <LeadTimeBadge days={part.leadTimeDays} />
-        </td>
-        <td className="py-3.5 px-4">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              alert(`Added ${part.mpn} from ${part.distributor} to order`);
-            }}
-            className="text-sm font-medium text-blue-600 hover:text-blue-700 transition-colors"
-          >
-            Add
-          </button>
-        </td>
-      </tr>
-      {expanded && (
-        <tr className="bg-zinc-50 border-b border-zinc-100">
-          <td colSpan={7} className="px-4 py-4">
-            <div className="flex flex-wrap gap-8">
-              {part.priceBreaks.length > 1 && (
-                <div>
-                  <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-2">
-                    Quantity price breaks
-                  </p>
-                  <div className="flex gap-3 flex-wrap">
-                    {part.priceBreaks.map((pb) => (
-                      <div
-                        key={pb.quantity}
-                        className="text-sm bg-white border border-zinc-200 rounded-lg px-3 py-2"
-                      >
-                        <span className="text-zinc-500">{pb.quantity.toLocaleString()}+</span>
-                        <span className="ml-2 font-medium text-zinc-900">
-                          {formatPrice(pb.unitPrice, pb.currency)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+        <div
+          className={`flex-1 min-w-0 transition-opacity duration-200 ${
+            open ? "opacity-100" : "opacity-50"
+          }`}
+        >
+          <div className="flex items-baseline gap-3 mb-1">
+            <span className="font-mono text-[15px] font-semibold text-slate-900 tracking-tight">
+              {part.mpn}
+            </span>
+            <span className="text-sm text-slate-400">{part.manufacturer}</span>
+          </div>
+          <p className="text-sm text-slate-500 truncate">{part.description}</p>
+        </div>
+
+        <div
+          className={`text-right shrink-0 transition-opacity duration-200 ${
+            open ? "opacity-100" : "opacity-50"
+          }`}
+        >
+          <div className="flex items-baseline justify-end gap-1.5 mb-1">
+            <span className="text-xs text-slate-400">{part.distributor}</span>
+          </div>
+          <div className="text-[17px] font-semibold text-slate-900 leading-tight">
+            {formatPrice(part.unitPrice, part.currency)}
+            <span className="text-sm font-normal text-slate-400">/ea</span>
+          </div>
+          <div className="text-xs text-slate-400 mt-1">
+            {part.stockQty === 0 ? (
+              "Out of stock"
+            ) : part.stockQty >= 1000 ? (
+              `${(part.stockQty / 1000).toFixed(0)}k in stock`
+            ) : (
+              `${part.stockQty.toLocaleString()} in stock`
+            )}{" "}
+            · <LeadText days={part.leadTimeDays} />
+          </div>
+        </div>
+      </div>
+
+      {/* Expanded detail */}
+      {open && (
+        <div className="px-8 pb-7 pt-0" onClick={(e) => e.stopPropagation()}>
+          <div className="flex flex-wrap gap-10 mb-6">
+            {part.priceBreaks.length > 1 && (
               <div>
-                <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-2">
-                  SKU
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3">
+                  Volume pricing
                 </p>
-                <p className="font-mono text-sm text-zinc-700">{part.distributorSku}</p>
+                <div className="flex gap-2 flex-wrap">
+                  {part.priceBreaks.map((pb) => (
+                    <div
+                      key={pb.quantity}
+                      className="border border-slate-200 rounded-lg px-3 py-2.5 min-w-[68px] text-center"
+                    >
+                      <div className="text-xs text-slate-400 mb-1">
+                        {pb.quantity.toLocaleString()}+
+                      </div>
+                      <div className="text-sm font-semibold text-slate-900">
+                        {formatPrice(pb.unitPrice, pb.currency)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div className="flex gap-3 items-end">
-                {part.datasheetUrl && (
-                  <a
-                    href={part.datasheetUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                    className="text-sm text-blue-600 hover:underline"
-                  >
-                    Datasheet →
-                  </a>
-                )}
-                {part.distributorUrl && (
-                  <a
-                    href={part.distributorUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                    className="text-sm text-blue-600 hover:underline"
-                  >
-                    View on {part.distributor} →
-                  </a>
-                )}
-              </div>
+            )}
+
+            <div>
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3">
+                SKU
+              </p>
+              <span className="font-mono text-sm text-slate-700">{part.distributorSku}</span>
             </div>
-          </td>
-        </tr>
+
+            {(part.datasheetUrl || part.distributorUrl) && (
+              <div>
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3">
+                  Links
+                </p>
+                <div className="flex gap-5">
+                  {part.datasheetUrl && (
+                    <a
+                      href={part.datasheetUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm font-semibold text-indigo-600 hover:text-indigo-500 transition-colors"
+                    >
+                      Datasheet →
+                    </a>
+                  )}
+                  {part.distributorUrl && (
+                    <a
+                      href={part.distributorUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm font-semibold text-indigo-600 hover:text-indigo-500 transition-colors"
+                    >
+                      {part.distributor} →
+                    </a>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <button
+            onClick={() => alert(`Added ${part.mpn} from ${part.distributor} to order`)}
+            className="px-5 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500 rounded-lg transition-colors"
+          >
+            Add to order
+          </button>
+        </div>
       )}
-    </>
+    </div>
   );
 }
+
+// ── Accordion row — Alibaba supplier ─────────────────────────────────────────
+
+function AlibabaRow({ supplier }: { supplier: AlibabaSupplier }) {
+  const [open, setOpen] = useState(false);
+
+  const priceStr =
+    supplier.priceMin === supplier.priceMax
+      ? `$${supplier.priceMin.toFixed(3)}`
+      : `$${supplier.priceMin.toFixed(3)}–$${supplier.priceMax.toFixed(3)}`;
+  const leadStr =
+    supplier.leadTimeMin === supplier.leadTimeMax
+      ? `${supplier.leadTimeMin} days`
+      : `${supplier.leadTimeMin}–${supplier.leadTimeMax} days`;
+
+  return (
+    <div
+      className={`border-t border-slate-100 transition-all duration-200 ${
+        open
+          ? "border-l-[3px] border-l-indigo-600 bg-white"
+          : "border-l-[3px] border-l-transparent hover:bg-slate-50/50 cursor-pointer"
+      }`}
+      onClick={() => !open && setOpen(true)}
+    >
+      <div
+        className="flex items-start justify-between gap-10 px-8 py-5 cursor-pointer"
+        onClick={() => setOpen((v) => !v)}
+      >
+        <div
+          className={`flex-1 min-w-0 transition-opacity duration-200 ${
+            open ? "opacity-100" : "opacity-50"
+          }`}
+        >
+          <div className="flex items-baseline gap-3 mb-1">
+            <span className="text-[15px] font-semibold text-slate-900 truncate">
+              {supplier.supplierName}
+            </span>
+          </div>
+          <p className="text-sm text-slate-500 truncate">{supplier.productTitle}</p>
+        </div>
+
+        <div
+          className={`text-right shrink-0 transition-opacity duration-200 ${
+            open ? "opacity-100" : "opacity-50"
+          }`}
+        >
+          <div className="flex items-center justify-end gap-2 mb-1">
+            <span className="text-xs text-slate-400">Alibaba</span>
+            <span className="text-xs text-slate-400 border border-slate-200 rounded px-1.5 py-0.5 leading-none">
+              Indicative
+            </span>
+          </div>
+          <div className="text-[17px] font-semibold text-slate-900 leading-tight">
+            {priceStr}
+            <span className="text-sm font-normal text-slate-400">/ea</span>
+          </div>
+          <div className="text-xs text-slate-400 mt-1">
+            MOQ {supplier.moq.toLocaleString()} · {leadStr}
+          </div>
+        </div>
+      </div>
+
+      {open && (
+        <div className="px-8 pb-7 pt-0" onClick={(e) => e.stopPropagation()}>
+          <div className="flex flex-wrap gap-10 mb-6">
+            <div>
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3">
+                Price range
+              </p>
+              <div className="text-sm font-semibold text-slate-900">{priceStr}/ea</div>
+              <div className="text-xs text-slate-400 mt-1">Confirm with supplier before ordering</div>
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3">
+                Min. order qty
+              </p>
+              <div className="text-sm text-slate-700">{supplier.moq.toLocaleString()} units</div>
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3">
+                Est. lead time
+              </p>
+              <div className="text-sm text-slate-700">{leadStr}</div>
+            </div>
+            {supplier.supplierRating && (
+              <div>
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3">
+                  Supplier rating
+                </p>
+                <div className="text-sm text-slate-700">{supplier.supplierRating} / 5.0</div>
+              </div>
+            )}
+          </div>
+
+          <a
+            href={supplier.productUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-block px-5 py-2 text-sm font-semibold text-indigo-600 border border-indigo-200 hover:bg-indigo-50 rounded-lg transition-colors"
+          >
+            Send RFQ to supplier →
+          </a>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Page ─────────────────────────────────────────────────────────────────────
 
 export default function SearchPage() {
   const [query, setQuery] = useState("");
   const [parts, setParts] = useState<Part[]>([]);
+  const [suppliers, setSuppliers] = useState<AlibabaSupplier[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searched, setSearched] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>("price");
   const [inStockOnly, setInStockOnly] = useState(false);
   const [dataSource, setDataSource] = useState<"nexar" | "mock" | "cache" | null>(null);
-  const [suppliers, setSuppliers] = useState<AlibabaSupplier[]>([]);
-  const [alibabaSource, setAlibabaSource] = useState<"apify" | "mock" | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const doSearch = useCallback(async (q: string) => {
@@ -185,7 +300,6 @@ export default function SearchPage() {
       if (alibabaRes.status === "fulfilled") {
         const data = await alibabaRes.value.json();
         setSuppliers(data.suppliers ?? []);
-        setAlibabaSource(data.source ?? null);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
@@ -208,7 +322,7 @@ export default function SearchPage() {
     doSearch(query);
   };
 
-  const sorted = [...parts]
+  const sortedParts = [...parts]
     .filter((p) => !inStockOnly || p.stockQty > 0)
     .sort((a, b) => {
       if (sortKey === "price") {
@@ -225,112 +339,89 @@ export default function SearchPage() {
       return 0;
     });
 
+  const totalResults = sortedParts.length + suppliers.length;
+
   return (
-    <div className="min-h-screen bg-white">
-      {/* Header */}
-      <header className="border-b border-zinc-200 bg-white">
-        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <span className="text-lg font-semibold text-zinc-900">Syntro</span>
-            <span className="text-zinc-300">|</span>
-            <span className="text-sm text-zinc-500">Parts Search</span>
-          </div>
-          <div className="flex items-center gap-2">
-          {dataSource === "mock" && (
-            <span className="text-xs bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full">
-              Demo data — activate Nexar plan for live results
-            </span>
-          )}
-          {dataSource === "nexar" && (
-            <span className="text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full">
-              Live
-            </span>
-          )}
-          {dataSource === "cache" && (
-            <span className="text-xs bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-full">
-              Cached
-            </span>
-          )}
-          <span className="text-xs text-zinc-400">Powered by Nexar / Octopart</span>
-        </div>
-        </div>
-      </header>
-
-      <main className="max-w-6xl mx-auto px-6 py-10">
-        {/* Hero */}
-        <div className="mb-8">
-          <h1 className="text-2xl font-semibold text-zinc-900 mb-1">Find parts instantly</h1>
-          <p className="text-zinc-500 text-sm">
-            Search across 40+ distributors including DigiKey, Mouser, and Arrow. Compare pricing and
-            lead times without emailing suppliers.
+    <div className="min-h-screen bg-slate-50">
+      {/* Hero + search */}
+      <div className="bg-white border-b border-slate-200">
+        <div className="max-w-5xl mx-auto px-8 py-14">
+          <p className="text-xs font-semibold text-indigo-600 uppercase tracking-widest mb-4">
+            Parts catalog
           </p>
-        </div>
+          <h1 className="text-[40px] font-bold text-slate-900 tracking-tight leading-[1.15] mb-3">
+            Find parts instantly
+          </h1>
+          <p className="text-lg text-slate-500 mb-10 max-w-xl leading-relaxed">
+            Real-time pricing and lead times from DigiKey, Mouser, Arrow, and 40+ distributors.
+          </p>
 
-        {/* Search bar */}
-        <form onSubmit={handleSubmit} className="mb-6">
-          <div className="flex gap-3">
+          <form onSubmit={handleSubmit} className="flex gap-3 max-w-2xl">
             <div className="relative flex-1">
               <svg
-                className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400"
-                width="16"
-                height="16"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
+                className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+                width="16" height="16" fill="none" viewBox="0 0 24 24"
+                stroke="currentColor" strokeWidth={2}
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"
-                />
+                <path strokeLinecap="round" strokeLinejoin="round"
+                  d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
               </svg>
               <input
                 type="text"
                 value={query}
                 onChange={handleInputChange}
-                placeholder="Search by part number or keyword — e.g. LM358, M3 screw, 10k resistor"
-                className="w-full pl-10 pr-4 py-3 text-sm border border-zinc-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-zinc-900 placeholder:text-zinc-400"
+                placeholder="Part number or keyword — LM358, M3 screw, 10k resistor"
+                className="w-full pl-11 pr-4 py-3 text-sm border border-slate-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white text-slate-900 placeholder:text-slate-400"
               />
             </div>
             <button
               type="submit"
               disabled={loading || query.trim().length < 2}
-              className="px-5 py-3 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="px-6 py-3 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500 rounded-xl shadow-sm disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
               {loading ? "Searching…" : "Search"}
             </button>
-          </div>
-        </form>
+          </form>
+        </div>
+      </div>
 
-        {/* Filters & sort */}
+      {/* Results area */}
+      <main className="max-w-5xl mx-auto px-8 py-10">
+
+        {/* Filters */}
         {searched && !loading && (
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-4">
-              <span className="text-sm text-zinc-500">
-                {sorted.length} {sorted.length === 1 ? "result" : "results"}
-                {inStockOnly ? " (in stock)" : ""}
+          <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center gap-5">
+              <span className="text-sm text-slate-500">
+                <span className="font-semibold text-slate-900">{totalResults}</span>{" "}
+                {totalResults === 1 ? "result" : "results"}
+                {dataSource === "mock" && (
+                  <span className="ml-2 text-xs font-semibold text-slate-400">Demo data</span>
+                )}
+                {dataSource === "cache" && (
+                  <span className="ml-2 text-xs font-semibold text-indigo-500">Cached</span>
+                )}
               </span>
-              <label className="flex items-center gap-2 text-sm text-zinc-600 cursor-pointer">
+              <label className="flex items-center gap-2 text-sm text-slate-500 cursor-pointer select-none">
                 <input
                   type="checkbox"
                   checked={inStockOnly}
                   onChange={(e) => setInStockOnly(e.target.checked)}
-                  className="rounded border-zinc-300 text-blue-600 focus:ring-blue-500"
+                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                 />
                 In stock only
               </label>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-zinc-500">Sort by</span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-sm text-slate-400 mr-1">Sort</span>
               {(["price", "stock", "leadTime"] as SortKey[]).map((key) => (
                 <button
                   key={key}
                   onClick={() => setSortKey(key)}
-                  className={`text-sm px-3 py-1.5 rounded-lg border transition-colors ${
+                  className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition-all ${
                     sortKey === key
-                      ? "border-blue-600 text-blue-600 bg-blue-50"
-                      : "border-zinc-200 text-zinc-600 hover:border-zinc-300"
+                      ? "border-indigo-600 text-indigo-600 bg-indigo-50"
+                      : "border-slate-200 text-slate-500 bg-white hover:border-slate-300 hover:text-slate-700"
                   }`}
                 >
                   {key === "price" ? "Price" : key === "stock" ? "Stock" : "Lead time"}
@@ -342,64 +433,53 @@ export default function SearchPage() {
 
         {/* Loading skeleton */}
         {loading && (
-          <div className="space-y-3">
-            {[...Array(5)].map((_, i) => (
-              <div key={i} className="h-14 bg-zinc-100 rounded-lg animate-pulse" />
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="border-t border-slate-100 first:border-t-0 px-8 py-5 flex justify-between gap-8">
+                <div className="flex-1 space-y-2.5">
+                  <div className="h-4 w-52 bg-slate-100 rounded animate-pulse" />
+                  <div className="h-3 w-80 bg-slate-100 rounded animate-pulse" />
+                </div>
+                <div className="space-y-2.5 shrink-0 text-right">
+                  <div className="h-4 w-24 bg-slate-100 rounded animate-pulse ml-auto" />
+                  <div className="h-3 w-36 bg-slate-100 rounded animate-pulse ml-auto" />
+                </div>
+              </div>
             ))}
           </div>
         )}
 
         {/* Error */}
         {error && (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <div className="rounded-xl border border-red-100 bg-red-50 px-6 py-4 text-sm text-red-600">
             {error}
           </div>
         )}
 
-        {/* Results table */}
-        {!loading && sorted.length > 0 && (
-          <div className="border border-zinc-200 rounded-xl overflow-hidden">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="border-b border-zinc-200 bg-zinc-50">
-                  <th className="py-3 px-4 text-xs font-semibold text-zinc-500 uppercase tracking-wide">
-                    Part / Description
-                  </th>
-                  <th className="py-3 px-4 text-xs font-semibold text-zinc-500 uppercase tracking-wide">
-                    Manufacturer
-                  </th>
-                  <th className="py-3 px-4 text-xs font-semibold text-zinc-500 uppercase tracking-wide">
-                    Distributor
-                  </th>
-                  <th className="py-3 px-4 text-xs font-semibold text-zinc-500 uppercase tracking-wide">
-                    Unit price
-                  </th>
-                  <th className="py-3 px-4 text-xs font-semibold text-zinc-500 uppercase tracking-wide">
-                    Stock
-                  </th>
-                  <th className="py-3 px-4 text-xs font-semibold text-zinc-500 uppercase tracking-wide">
-                    Lead time
-                  </th>
-                  <th className="py-3 px-4" />
-                </tr>
-              </thead>
-              <tbody>
-                {sorted.map((part, i) => (
-                  <PartRow key={`${part.mpn}-${part.distributor}-${part.distributorSku}-${i}`} part={part} />
-                ))}
-              </tbody>
-            </table>
+        {/* Accordion list */}
+        {!loading && totalResults > 0 && (
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            {sortedParts.map((part, i) => (
+              <PartRow
+                key={`${part.mpn}-${part.distributor}-${part.distributorSku}-${i}`}
+                part={part}
+              />
+            ))}
+            {suppliers.map((s, i) => (
+              <AlibabaRow key={i} supplier={s} />
+            ))}
+            <div className="border-t border-slate-100" />
           </div>
         )}
 
         {/* No results */}
-        {!loading && searched && sorted.length === 0 && !error && (
-          <div className="text-center py-16 border border-zinc-200 rounded-xl">
-            <p className="text-zinc-500 text-sm mb-1">No parts found for &quot;{query}&quot;</p>
-            <p className="text-zinc-400 text-xs mb-4">
-              This part may not be in the catalog. Generate an RFQ to request quotes from suppliers.
+        {!loading && searched && totalResults === 0 && !error && (
+          <div className="text-center py-20 bg-white rounded-2xl border border-slate-200 shadow-sm">
+            <p className="text-base font-semibold text-slate-700 mb-1">
+              No parts found for &ldquo;{query}&rdquo;
             </p>
-            <button className="px-4 py-2 text-sm font-medium border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors">
+            <p className="text-sm text-slate-400 mb-6">This part may not be in the catalog.</p>
+            <button className="px-5 py-2.5 text-sm font-semibold text-indigo-600 border border-indigo-200 rounded-xl hover:bg-indigo-50 transition-colors">
               Generate RFQ →
             </button>
           </div>
@@ -407,80 +487,9 @@ export default function SearchPage() {
 
         {/* Empty state */}
         {!searched && (
-          <div className="text-center py-16 text-zinc-400 text-sm">
-            Search for a part number or keyword to see real-time pricing from 40+ distributors.
-          </div>
-        )}
-
-        {/* Alibaba Supplier Quotes */}
-        {!loading && searched && suppliers.length > 0 && (
-          <div className="mt-8">
-            <div className="flex items-center gap-3 mb-3">
-              <h2 className="text-sm font-semibold text-zinc-700">Supplier Quotes</h2>
-              <span className="inline-flex items-center gap-1 text-xs bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full">
-                ⚡ Indicative pricing — contact supplier to confirm
-              </span>
-              {alibabaSource === "mock" && (
-                <span className="text-xs text-zinc-400">Demo data</span>
-              )}
-            </div>
-            <div className="border border-amber-200 rounded-xl overflow-hidden">
-              <table className="w-full text-left">
-                <thead>
-                  <tr className="border-b border-amber-200 bg-amber-50">
-                    <th className="py-3 px-4 text-xs font-semibold text-amber-800 uppercase tracking-wide">Supplier</th>
-                    <th className="py-3 px-4 text-xs font-semibold text-amber-800 uppercase tracking-wide">Product</th>
-                    <th className="py-3 px-4 text-xs font-semibold text-amber-800 uppercase tracking-wide">Price range</th>
-                    <th className="py-3 px-4 text-xs font-semibold text-amber-800 uppercase tracking-wide">MOQ</th>
-                    <th className="py-3 px-4 text-xs font-semibold text-amber-800 uppercase tracking-wide">Est. lead time</th>
-                    <th className="py-3 px-4 text-xs font-semibold text-amber-800 uppercase tracking-wide">Rating</th>
-                    <th className="py-3 px-4" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {suppliers.map((s, i) => (
-                    <tr key={i} className="border-b border-amber-100 last:border-0 hover:bg-amber-50/50 transition-colors">
-                      <td className="py-3 px-4">
-                        <span className="text-sm font-medium text-zinc-800">{s.supplierName}</span>
-                      </td>
-                      <td className="py-3 px-4">
-                        <span className="text-sm text-zinc-600 max-w-xs block truncate">{s.productTitle}</span>
-                      </td>
-                      <td className="py-3 px-4 text-sm font-medium text-zinc-900">
-                        {s.priceMin === s.priceMax
-                          ? `$${s.priceMin.toFixed(3)}`
-                          : `$${s.priceMin.toFixed(3)}–$${s.priceMax.toFixed(3)}`}
-                        <span className="text-xs text-zinc-400 font-normal">/ea</span>
-                      </td>
-                      <td className="py-3 px-4 text-sm text-zinc-700">
-                        {s.moq.toLocaleString()} units
-                      </td>
-                      <td className="py-3 px-4 text-sm text-zinc-700">
-                        {s.leadTimeMin === s.leadTimeMax
-                          ? `${s.leadTimeMin} days`
-                          : `${s.leadTimeMin}–${s.leadTimeMax} days`}
-                      </td>
-                      <td className="py-3 px-4 text-sm text-zinc-700">
-                        {s.supplierRating ? `${s.supplierRating}★` : "—"}
-                      </td>
-                      <td className="py-3 px-4">
-                        <a
-                          href={s.productUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-sm font-medium text-amber-700 hover:text-amber-800 transition-colors whitespace-nowrap"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          Send RFQ →
-                        </a>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <p className="text-xs text-zinc-400 mt-2">
-              Prices are estimates based on Alibaba listings. Actual pricing depends on quantity, material, and supplier negotiation.
+          <div className="text-center py-24">
+            <p className="text-sm text-slate-400">
+              Search for a part number or keyword to see real-time pricing from 40+ distributors.
             </p>
           </div>
         )}
