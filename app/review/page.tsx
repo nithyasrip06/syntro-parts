@@ -5,15 +5,16 @@ import { motion, AnimatePresence } from "framer-motion";
 import { MOCK_BOM_PARTS, type BOMPart } from "@/lib/mockReviewData";
 import type { Part } from "@/types/part";
 
-// ── Types ─────────────────────────────────────────────────────────────────────
-
 type Phase = "intro" | "review" | "done";
 type SortKey = "price" | "leadTime";
 type Outcome =
   | { kind: "matched"; partId: string; match: Part }
   | { kind: "skipped"; partId: string };
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+const TRANSITION = {
+  duration: 0.75,
+  ease: [0.16, 1, 0.3, 1] as [number, number, number, number],
+};
 
 function formatPrice(price: number | null): string {
   if (price === null) return "—";
@@ -28,66 +29,72 @@ function leadLabel(days: number | null): string {
   return `${days}-day lead`;
 }
 
-// ── Pill positions for intro — spread around edges, center kept clear ─────────
+function getBadge(match: Part, allMatches: Part[]): string | null {
+  const lowestPrice = Math.min(...allMatches.map((m) => m.unitPrice ?? Infinity));
+  const lowestLead = Math.min(...allMatches.map((m) => m.leadTimeDays ?? Infinity));
+  if (match.unitPrice !== null && match.unitPrice === lowestPrice) return "Best price";
+  if (match.leadTimeDays !== null && match.leadTimeDays === lowestLead) return "Fastest";
+  return null;
+}
 
-const PILL_LAYOUT: { x: number; y: number; dur: number; delay: number }[] = [
-  { x: 6,  y: 14, dur: 5.2, delay: 0    },
-  { x: 82, y: 10, dur: 4.8, delay: 0.7  },
-  { x: 4,  y: 52, dur: 6.1, delay: 1.3  },
-  { x: 88, y: 48, dur: 5.5, delay: 0.4  },
-  { x: 8,  y: 82, dur: 4.6, delay: 1.9  },
-  { x: 80, y: 80, dur: 5.8, delay: 0.9  },
-  { x: 38, y: 6,  dur: 5.0, delay: 2.1  },
-  { x: 56, y: 88, dur: 4.9, delay: 1.5  },
-  { x: 24, y: 72, dur: 5.6, delay: 0.2  },
-  { x: 70, y: 22, dur: 4.7, delay: 1.1  },
-  { x: 18, y: 30, dur: 5.3, delay: 2.4  },
-  { x: 76, y: 64, dur: 6.0, delay: 0.6  },
-];
+// ── Animated checkbox ─────────────────────────────────────────────────────────
+
+function Checkbox({ checked }: { checked: boolean }) {
+  return (
+    <div
+      className="w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all duration-150 shrink-0"
+      style={
+        checked
+          ? { backgroundColor: "var(--text)", borderColor: "var(--text)" }
+          : { backgroundColor: "transparent", borderColor: "#d1d5db" }
+      }
+    >
+      <AnimatePresence>
+        {checked && (
+          <motion.svg
+            key="check"
+            initial={{ opacity: 0, scale: 0.4 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.4 }}
+            transition={{ duration: 0.14, ease: "easeOut" }}
+            width="10"
+            height="8"
+            viewBox="0 0 10 8"
+            fill="none"
+          >
+            <path
+              d="M1 4l3 3 5-6"
+              stroke="white"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </motion.svg>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
 
 // ── Intro screen ──────────────────────────────────────────────────────────────
 
 function IntroScreen({ onStart }: { onStart: () => void }) {
   return (
-    <div className="relative min-h-screen bg-white flex items-center justify-center overflow-hidden">
-      {/* Floating part name pills */}
-      {MOCK_BOM_PARTS.map((part, i) => {
-        const pos = PILL_LAYOUT[i] ?? { x: 50, y: 50, dur: 5, delay: 0 };
-        return (
-          <motion.div
-            key={part.id}
-            className="absolute select-none pointer-events-none"
-            style={{ left: `${pos.x}%`, top: `${pos.y}%` }}
-            initial={{ opacity: 0 }}
-            animate={{
-              opacity: [0, 0.45, 0.25, 0.5, 0.25],
-              y: [0, -14, 0, 9, 0],
-              x: [0, 5, -3, 4, 0],
-            }}
-            transition={{
-              opacity: { duration: pos.dur, repeat: Infinity, ease: "easeInOut", delay: pos.delay },
-              y:       { duration: pos.dur, repeat: Infinity, ease: "easeInOut", delay: pos.delay },
-              x:       { duration: pos.dur * 1.3, repeat: Infinity, ease: "easeInOut", delay: pos.delay },
-            }}
-          >
-            <div className="px-3 py-1.5 bg-white border border-slate-200 rounded-full text-xs text-slate-500 shadow-sm whitespace-nowrap">
-              {part.name}
-            </div>
-          </motion.div>
-        );
-      })}
-
-      {/* Center content */}
-      <motion.div
-        className="relative z-10 text-center max-w-lg px-6"
-        initial={{ opacity: 0, y: 24 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.7, ease: [0.25, 0.1, 0.25, 1] }}
-      >
-        <p className="text-xs font-semibold text-indigo-600 uppercase tracking-widest mb-5">
+    <div
+      className="min-h-screen flex items-center justify-center"
+      style={{ background: "var(--bg)" }}
+    >
+      <div className="text-center max-w-lg px-6">
+        <p
+          className="text-xs font-semibold uppercase tracking-widest mb-5"
+          style={{ color: "var(--accent-pink)" }}
+        >
           BOM analysis complete
         </p>
-        <h1 className="text-5xl font-bold text-slate-900 tracking-tight leading-[1.1] mb-4">
+        <h1
+          className="text-5xl font-bold tracking-tight leading-[1.1] mb-4"
+          style={{ color: "var(--text)" }}
+        >
           {MOCK_BOM_PARTS.length} parts,<br />ready to match
         </h1>
         <p className="text-lg text-slate-400 leading-relaxed mb-10">
@@ -95,14 +102,15 @@ function IntroScreen({ onStart }: { onStart: () => void }) {
         </p>
         <motion.button
           onClick={onStart}
-          whileHover={{ scale: 1.02 }}
+          whileHover={{ opacity: 0.88 }}
           whileTap={{ scale: 0.98 }}
-          transition={{ type: "spring", stiffness: 400, damping: 20 }}
-          className="px-8 py-3.5 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500 rounded-xl transition-colors shadow-sm"
+          transition={{ duration: 0.12 }}
+          className="px-8 py-3.5 text-sm font-semibold text-white rounded-xl"
+          style={{ background: "var(--text)" }}
         >
           Start review →
         </motion.button>
-      </motion.div>
+      </div>
     </div>
   );
 }
@@ -111,77 +119,90 @@ function IntroScreen({ onStart }: { onStart: () => void }) {
 
 function MatchCard({
   match,
+  allMatches,
   selected,
   pending,
   onSelect,
 }: {
   match: Part;
+  allMatches: Part[];
   selected: boolean;
   pending: boolean;
   onSelect: () => void;
 }) {
+  const badge = getBadge(match, allMatches);
   const volumeBreaks = match.priceBreaks.slice(1, 3);
 
   return (
-    <motion.button
-      onClick={onSelect}
-      disabled={pending}
-      whileHover={!selected && !pending ? { y: -3, boxShadow: "0 8px 24px rgba(0,0,0,0.07)" } : {}}
-      whileTap={!selected ? { scale: 0.99 } : {}}
-      transition={{ type: "spring", stiffness: 350, damping: 22 }}
-      className={`relative w-full text-left p-5 rounded-xl border-2 transition-colors duration-150 ${
-        selected
-          ? "border-indigo-600 bg-indigo-50/40 shadow-sm"
-          : "border-slate-200 bg-white hover:border-slate-300"
-      }`}
-    >
-      {/* Selected checkmark */}
-      {selected && (
-        <motion.div
-          initial={{ scale: 0, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ type: "spring", stiffness: 400, damping: 20 }}
-          className="absolute top-4 right-4 w-5 h-5 rounded-full bg-indigo-600 flex items-center justify-center"
-        >
-          <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
-            <path d="M1 4l3 3 5-6" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-        </motion.div>
-      )}
+    <motion.div whileHover={!selected && !pending ? { y: -2 } : {}}>
+      <button
+        onClick={onSelect}
+        disabled={pending}
+        className="w-full text-left p-5 rounded-2xl"
+        style={{
+          backgroundColor: selected ? "var(--accent-pink-light)" : "#fff",
+          border: `2px solid ${selected ? "var(--accent-pink-border)" : "#e5e7eb"}`,
+          transition: "background-color 0.15s ease, border-color 0.15s ease",
+          boxShadow: selected ? "none" : undefined,
+        }}
+      >
+        {/* Top row: badge + checkbox */}
+        <div className="flex items-center justify-between mb-3">
+          {badge ? (
+            <span
+              className="text-xs font-semibold px-2 py-0.5 rounded-full"
+              style={{
+                background: "var(--accent-pink-light)",
+                color: "var(--accent-pink)",
+              }}
+            >
+              {badge}
+            </span>
+          ) : (
+            <span />
+          )}
+          <Checkbox checked={selected} />
+        </div>
 
-      {/* Distributor */}
-      <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3 pr-8">
-        {match.distributor}
-      </p>
-
-      {/* Price */}
-      <div className="mb-1">
-        <span className="text-3xl font-bold text-slate-900 tracking-tight">
-          {formatPrice(match.unitPrice)}
-        </span>
-        <span className="text-sm text-slate-400 ml-1">/ea</span>
-      </div>
-
-      {/* Volume breaks */}
-      {volumeBreaks.length > 0 && (
-        <p className="text-xs text-slate-400 mb-3">
-          {volumeBreaks.map((pb) => `${pb.quantity.toLocaleString()}+: ${formatPrice(pb.unitPrice)}`).join(" · ")}
+        {/* Distributor */}
+        <p className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-3">
+          {match.distributor}
         </p>
-      )}
 
-      {/* Stock / lead time */}
-      <div className="flex items-center gap-2 text-xs text-slate-500 mt-3 pt-3 border-t border-slate-100">
-        <span>
-          {match.stockQty === 0
-            ? "Out of stock"
-            : match.stockQty >= 1000
-            ? `${(match.stockQty / 1000).toFixed(0)}k in stock`
-            : `${match.stockQty.toLocaleString()} in stock`}
-        </span>
-        <span className="text-slate-300">·</span>
-        <span>{leadLabel(match.leadTimeDays)}</span>
-      </div>
-    </motion.button>
+        {/* Price */}
+        <div className="mb-1">
+          <span
+            className="text-3xl font-bold tracking-tight"
+            style={{ color: "var(--text)" }}
+          >
+            {formatPrice(match.unitPrice)}
+          </span>
+          <span className="text-sm text-slate-400 ml-1">/ea</span>
+        </div>
+
+        {/* Volume breaks */}
+        {volumeBreaks.length > 0 && (
+          <p className="text-xs text-slate-400 mb-3">
+            {volumeBreaks
+              .map((pb) => `${pb.quantity.toLocaleString()}+: ${formatPrice(pb.unitPrice)}`)
+              .join(" · ")}
+          </p>
+        )}
+
+        {/* Stock / lead time */}
+        <div className="flex items-center gap-2 text-xs text-slate-400 mt-3 pt-3 border-t border-slate-100">
+          <span>
+            {match.stockQty === 0
+              ? "Out of stock"
+              : match.stockQty >= 1000
+              ? `${(match.stockQty / 1000).toFixed(0)}k in stock`
+              : `${match.stockQty.toLocaleString()} in stock`}
+          </span>
+          <span className="text-slate-200">·</span>
+          <span>{leadLabel(match.leadTimeDays)}</span>
+        </div>
+      </button>
+    </motion.div>
   );
 }
 
@@ -222,68 +243,79 @@ function ReviewScreen({
     setTimeout(() => onMatch(match), 380);
   }
 
+  const gridClass =
+    sorted.length >= 3 ? "grid-cols-3" : sorted.length === 2 ? "grid-cols-2" : "grid-cols-1";
+
   return (
-    <div className="min-h-screen bg-white flex flex-col">
-      {/* Progress */}
-      <div className="flex items-center justify-between px-10 pt-8 pb-0">
-        <div className="h-0.5 flex-1 bg-slate-100 rounded-full overflow-hidden mr-6">
+    <div
+      className="min-h-screen flex flex-col"
+      style={{ background: "var(--bg)" }}
+    >
+      {/* Horizontal progress bar */}
+      <div className="flex items-center gap-4 px-10 pt-8">
+        <div className="h-0.5 flex-1 bg-slate-100 rounded-full overflow-hidden">
           <motion.div
-            className="h-full bg-indigo-600 rounded-full"
+            className="h-full rounded-full"
+            style={{ background: "var(--accent-pink)" }}
             initial={false}
-            animate={{ width: `${((index) / total) * 100}%` }}
-            transition={{ duration: 0.4, ease: "easeOut" }}
+            animate={{ width: `${((index + 1) / total) * 100}%` }}
+            transition={{ duration: 0.5, ease: "easeOut" }}
           />
         </div>
-        <span className="text-xs text-slate-400 shrink-0 tabular-nums">
+        <span className="text-xs text-slate-400 tabular-nums shrink-0">
           {index + 1} of {total}
         </span>
       </div>
 
       {/* Part info */}
-      <div className="max-w-3xl w-full mx-auto px-10 pt-14 pb-8">
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, ease: "easeOut" }}
+      <div className="max-w-3xl w-full mx-auto px-10 pt-12 pb-6">
+        <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3">
+          {part.specSummary}
+        </p>
+        <h2
+          className="text-3xl font-bold tracking-tight mb-2"
+          style={{ color: "var(--text)" }}
         >
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3">
-            {part.specSummary}
-          </p>
-          <h2 className="text-3xl font-bold text-slate-900 tracking-tight mb-2">
-            {part.name}
-          </h2>
-          <p className="text-sm text-slate-400">
-            Qty needed:{" "}
-            <span className="font-semibold text-slate-700">{part.qtyNeeded.toLocaleString()}</span>
-          </p>
-        </motion.div>
+          {part.name}
+        </h2>
+        <p className="text-sm text-slate-400">
+          Qty needed:{" "}
+          <span className="font-semibold" style={{ color: "var(--text)" }}>
+            {part.qtyNeeded.toLocaleString()}
+          </span>
+        </p>
       </div>
 
-      {/* Sort */}
+      {/* Sort pills */}
       <div className="max-w-3xl w-full mx-auto px-10 pb-5 flex items-center gap-2">
         <span className="text-xs text-slate-400 mr-1">Sort</span>
-        {(["price", "leadTime"] as SortKey[]).map((key) => (
-          <button
-            key={key}
-            onClick={() => setSort(key)}
-            className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition-all ${
-              sort === key
-                ? "border-indigo-600 text-indigo-600 bg-indigo-50"
-                : "border-slate-200 text-slate-400 hover:border-slate-300 hover:text-slate-600"
-            }`}
-          >
-            {key === "price" ? "Price" : "Lead time"}
-          </button>
-        ))}
+        {(["price", "leadTime"] as SortKey[]).map((key) => {
+          const active = sort === key;
+          return (
+            <button
+              key={key}
+              onClick={() => setSort(key)}
+              className="text-xs font-semibold px-3 py-1.5 rounded-lg border transition-all"
+              style={{
+                borderColor: active ? "var(--text)" : "#e5e7eb",
+                color: active ? "var(--text)" : "#9ca3af",
+                background: active ? "#f9fafb" : "#fff",
+              }}
+            >
+              {key === "price" ? "Price" : "Lead time"}
+            </button>
+          );
+        })}
       </div>
 
       {/* Cards */}
       <div className="max-w-3xl w-full mx-auto px-10 pb-8">
-        <div className={`grid gap-3 ${sorted.length >= 3 ? "grid-cols-3" : sorted.length === 2 ? "grid-cols-2" : "grid-cols-1"}`}>
+        <div className={`grid gap-3 ${gridClass}`}>
           {sorted.map((match) => (
             <MatchCard
               key={match.distributorSku}
               match={match}
+              allMatches={part.matches}
               selected={selectedSku === match.distributorSku}
               pending={pending}
               onSelect={() => handleSelect(match)}
@@ -302,6 +334,7 @@ function ReviewScreen({
           Skip — flag for RFQ
         </button>
       </div>
+
     </div>
   );
 }
@@ -309,21 +342,28 @@ function ReviewScreen({
 // ── Done screen ───────────────────────────────────────────────────────────────
 
 function DoneScreen({ outcomes }: { outcomes: Outcome[] }) {
-  const matched = outcomes.filter((o) => o.kind === "matched") as Extract<Outcome, { kind: "matched" }>[];
+  const matched = outcomes.filter((o) => o.kind === "matched") as Extract<
+    Outcome,
+    { kind: "matched" }
+  >[];
   const skipped = outcomes.filter((o) => o.kind === "skipped").length;
 
   return (
-    <motion.div
-      className="min-h-screen bg-white flex items-start justify-center pt-24 px-8"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.5 }}
+    <div
+      className="min-h-screen flex items-start justify-center pt-24 px-8"
+      style={{ background: "var(--bg)" }}
     >
       <div className="max-w-lg w-full">
-        <p className="text-xs font-semibold text-indigo-600 uppercase tracking-widest mb-5">
+        <p
+          className="text-xs font-semibold uppercase tracking-widest mb-5"
+          style={{ color: "var(--accent-pink)" }}
+        >
           Review complete
         </p>
-        <h2 className="text-4xl font-bold text-slate-900 tracking-tight mb-3">
+        <h2
+          className="text-4xl font-bold tracking-tight mb-3"
+          style={{ color: "var(--text)" }}
+        >
           {matched.length} of {outcomes.length} matched
         </h2>
         <p className="text-lg text-slate-400 mb-10">
@@ -332,13 +372,14 @@ function DoneScreen({ outcomes }: { outcomes: Outcome[] }) {
             : "All parts matched."}
         </p>
 
-        {/* Outcome list */}
         <div className="mb-10">
           {MOCK_BOM_PARTS.map((part, i) => {
             const outcome = outcomes[i];
             if (!outcome) return null;
             const isMatched = outcome.kind === "matched";
-            const matchedOutcome = isMatched ? (outcome as Extract<Outcome, { kind: "matched" }>) : null;
+            const matchedOutcome = isMatched
+              ? (outcome as Extract<Outcome, { kind: "matched" }>)
+              : null;
 
             return (
               <motion.div
@@ -346,17 +387,24 @@ function DoneScreen({ outcomes }: { outcomes: Outcome[] }) {
                 className="flex items-center gap-3.5 py-3 border-b border-slate-100 last:border-0"
                 initial={{ opacity: 0, x: -8 }}
                 animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: i * 0.04, duration: 0.25 }}
+                transition={{ delay: i * 0.04, duration: 0.22 }}
               >
                 <span
-                  className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                    isMatched ? "bg-slate-900" : "bg-slate-200"
-                  }`}
+                  className="w-1.5 h-1.5 rounded-full shrink-0"
+                  style={{
+                    backgroundColor: isMatched ? "var(--accent-pink)" : "#e5e7eb",
+                  }}
                 />
-                <span className="text-sm text-slate-700 flex-1 truncate">{part.name}</span>
+                <span
+                  className="text-sm flex-1 truncate"
+                  style={{ color: "var(--text)" }}
+                >
+                  {part.name}
+                </span>
                 {isMatched && matchedOutcome ? (
                   <span className="text-xs text-slate-400 shrink-0">
-                    {matchedOutcome.match.distributor} · {formatPrice(matchedOutcome.match.unitPrice)}/ea
+                    {matchedOutcome.match.distributor} ·{" "}
+                    {formatPrice(matchedOutcome.match.unitPrice)}/ea
                   </span>
                 ) : (
                   <span className="text-xs text-slate-300 shrink-0">RFQ</span>
@@ -366,15 +414,18 @@ function DoneScreen({ outcomes }: { outcomes: Outcome[] }) {
           })}
         </div>
 
-        <button className="px-6 py-3 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500 rounded-xl transition-colors shadow-sm">
+        <button
+          className="px-6 py-3 text-sm font-semibold text-white rounded-xl"
+          style={{ background: "var(--text)" }}
+        >
           Proceed with selections
         </button>
       </div>
-    </motion.div>
+    </div>
   );
 }
 
-// ── Page ──────────────────────────────────────────────────────────────────────
+// ── Page root ─────────────────────────────────────────────────────────────────
 
 export default function ReviewPage() {
   const [phase, setPhase] = useState<Phase>("intro");
@@ -406,47 +457,57 @@ export default function ReviewPage() {
   const currentPart = MOCK_BOM_PARTS[currentIndex];
 
   return (
-    <AnimatePresence mode="wait">
-      {phase === "intro" && (
-        <motion.div
-          key="intro"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0, scale: 0.98 }}
-          transition={{ duration: 0.35 }}
-        >
-          <IntroScreen onStart={() => setPhase("review")} />
-        </motion.div>
-      )}
+    // relative + overflow-hidden so absolute children overlap during AnimatePresence
+    <div
+      className="relative overflow-hidden"
+      style={{ minHeight: "100vh", background: "var(--bg)" }}
+    >
+      <AnimatePresence initial={false}>
+        {phase === "intro" && (
+          <motion.div
+            key="intro"
+            className="absolute inset-0 overflow-y-auto"
+            initial={{ opacity: 0, x: 60 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -40 }}
+            transition={TRANSITION}
+          >
+            <IntroScreen onStart={() => setPhase("review")} />
+          </motion.div>
+        )}
 
-      {phase === "review" && currentPart && (
-        <motion.div
-          key={`review-${currentIndex}`}
-          initial={{ opacity: 0, x: 32 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -32 }}
-          transition={{ type: "spring", stiffness: 300, damping: 28 }}
-        >
-          <ReviewScreen
-            part={currentPart}
-            index={currentIndex}
-            total={MOCK_BOM_PARTS.length}
-            onMatch={handleMatch}
-            onSkip={handleSkip}
-          />
-        </motion.div>
-      )}
+        {phase === "review" && currentPart && (
+          <motion.div
+            key={`r${currentIndex}`}
+            className="absolute inset-0 overflow-y-auto"
+            initial={{ opacity: 0, x: 60 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -40 }}
+            transition={TRANSITION}
+          >
+            <ReviewScreen
+              part={currentPart}
+              index={currentIndex}
+              total={MOCK_BOM_PARTS.length}
+              onMatch={handleMatch}
+              onSkip={handleSkip}
+            />
+          </motion.div>
+        )}
 
-      {phase === "done" && (
-        <motion.div
-          key="done"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.4 }}
-        >
-          <DoneScreen outcomes={outcomes} />
-        </motion.div>
-      )}
-    </AnimatePresence>
+        {phase === "done" && (
+          <motion.div
+            key="done"
+            className="absolute inset-0 overflow-y-auto"
+            initial={{ opacity: 0, x: 60 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -40 }}
+            transition={TRANSITION}
+          >
+            <DoneScreen outcomes={outcomes} />
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }
