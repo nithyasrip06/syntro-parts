@@ -21,6 +21,7 @@ export interface AlibabaSupplier {
 export interface Part {
   mpn: string;
   manufacturer: string;
+  manufacturerUrl?: string | null;
   description: string;
   distributor: string;
   distributorSku: string;

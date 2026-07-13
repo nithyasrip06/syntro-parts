@@ -43,6 +43,7 @@ const SEARCH_QUERY = `
           shortDescription
           category { name }
           documentCollections {
+            name
             documents { url name }
           }
           sellers {
@@ -81,18 +82,52 @@ interface NexarPart {
   manufacturer: { name: string };
   shortDescription: string | null;
   category: { name: string } | null;
-  documentCollections: Array<{ documents: Array<{ url: string; name: string }> }>;
+  documentCollections: Array<{ name: string; documents: Array<{ url: string; name: string }> }>;
   sellers: NexarSeller[];
 }
 
+// Search URLs are reliable regardless of SKU format; fall back to homepage.
 function buildDistributorUrl(companyName: string, homepageUrl: string | null, sku: string): string | null {
-  const knownUrls: Record<string, string> = {
-    "DigiKey": `https://www.digikey.com/en/products/detail/-/-/${sku}`,
-    "Mouser": `https://www.mouser.com/ProductDetail/${sku}`,
-    "Arrow": `https://www.arrow.com/en/products/${sku}`,
-    "Avnet": `https://www.avnet.com/shop/us/search-filter?q=${encodeURIComponent(sku)}`,
+  const enc = encodeURIComponent(sku);
+  const known: Record<string, string> = {
+    "DigiKey":    `https://www.digikey.com/products/en?keywords=${enc}`,
+    "Mouser":     `https://www.mouser.com/Search/Refine?Keyword=${enc}`,
+    "Arrow":      `https://www.arrow.com/en/search?q=${enc}`,
+    "Avnet":      `https://www.avnet.com/shop/us/search-filter?q=${enc}`,
+    "Newark":     `https://www.newark.com/search?st=${enc}`,
+    "Farnell":    `https://www.farnell.com/search?st=${enc}`,
+    "RS Components": `https://www.rs-online.com/web/c/?searchTerm=${enc}`,
+    "Future Electronics": `https://www.futureelectronics.com/search/?&text=${enc}`,
+    "Allied Electronics": `https://www.alliedelec.com/search/?q=${enc}`,
+    "TTI":        `https://www.tti.com/content/ttiinc/en/apps/search.html#q=${enc}`,
   };
-  return knownUrls[companyName] ?? homepageUrl ?? null;
+  return known[companyName] ?? homepageUrl ?? null;
+}
+
+// Prioritise a collection explicitly named "Datasheets", then fall back to
+// any document whose name or URL suggests it's a datasheet PDF.
+function extractDatasheetUrl(
+  collections: Array<{ name: string; documents: Array<{ url: string; name: string }> }>
+): string | null {
+  if (!collections?.length) return null;
+
+  // 1. Preferred: collection named "Datasheets"
+  const datasheetCollection = collections.find(
+    (c) => c.name?.toLowerCase().includes("datasheet")
+  );
+  const preferredDoc = datasheetCollection?.documents?.[0];
+  if (preferredDoc?.url) return preferredDoc.url;
+
+  // 2. Fallback: any document across all collections with datasheet in name or .pdf URL
+  for (const col of collections) {
+    for (const doc of col.documents ?? []) {
+      if (doc.name?.toLowerCase().includes("datasheet") || doc.url?.toLowerCase().endsWith(".pdf")) {
+        return doc.url;
+      }
+    }
+  }
+
+  return null;
 }
 
 export async function searchNexar(query: string, limit = 20): Promise<Part[]> {
@@ -125,10 +160,8 @@ export async function searchNexar(query: string, limit = 20): Promise<Part[]> {
   const parts: Part[] = [];
 
   for (const nexarPart of results) {
-    const datasheetUrl =
-      nexarPart.documentCollections?.[0]?.documents?.find(
-        (d) => d.name?.toLowerCase().includes("datasheet") || d.url?.endsWith(".pdf")
-      )?.url ?? null;
+    const datasheetUrl = extractDatasheetUrl(nexarPart.documentCollections);
+    const manufacturerUrl = null; // SupCompany doesn't expose url in Nexar schema
 
     for (const seller of nexarPart.sellers) {
       for (const offer of seller.offers) {
@@ -140,6 +173,7 @@ export async function searchNexar(query: string, limit = 20): Promise<Part[]> {
         parts.push({
           mpn: nexarPart.mpn,
           manufacturer: nexarPart.manufacturer.name,
+          manufacturerUrl,
           description: nexarPart.shortDescription ?? "",
           distributor: seller.company.name,
           distributorSku: offer.sku,
@@ -161,5 +195,16 @@ export async function searchNexar(query: string, limit = 20): Promise<Part[]> {
     }
   }
 
-  return parts;
+  // Only return in-stock offers with a working URL, sorted by price then lead time.
+  return parts
+    .filter(p => p.stockQty > 0 && p.distributorUrl !== null)
+    .sort((a, b) => {
+      const pa = a.unitPrice ?? Infinity;
+      const pb = b.unitPrice ?? Infinity;
+      if (pa !== pb) return pa - pb;
+      const la = a.leadTimeDays ?? Infinity;
+      const lb = b.leadTimeDays ?? Infinity;
+      return la - lb;
+    })
+    .slice(0, 10);
 }
